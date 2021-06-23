@@ -12,9 +12,5 @@ public class Encrypt {
         System.out.println(encode);
     }
 
-    @Test
-    public void testRSA(){
-
-    }
 
 }

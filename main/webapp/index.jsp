@@ -11,7 +11,10 @@
 <body>
 <h1>信息系统安全-课程设计要求</h1>
 <br>
-<a href="<c:url value="/login" />">登陆</a>&nbsp;&nbsp;&nbsp;
+<sec:authorize access="not isAuthenticated()">
+<a href="<c:url value="/login" />">账号密码登陆</a>&nbsp;&nbsp;&nbsp;
+<a href="<c:url value="/forelogin"/>">用户证书登陆</a>
+</sec:authorize>
 
 <sec:authentication var="user" property="principal" />
 
@@ -23,7 +26,10 @@
     <a href="<c:url value="/user" />">用户信息</a>&nbsp;&nbsp;&nbsp;
 </sec:authorize>
 
+<sec:authorize access="isAuthenticated()">
 <%--<a href="<c:url value="/user/1" />">用户信息</a>&nbsp;&nbsp;&nbsp;--%>
 <a href="<c:url value="/logout" />">退出</a>
+</sec:authorize>
+
 </body>
 </html>

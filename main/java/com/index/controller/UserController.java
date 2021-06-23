@@ -2,18 +2,29 @@ package com.index.controller;
 
 import java.util.List;
 
+import cn.hutool.core.codec.Base64;
+import cn.hutool.core.util.CharsetUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.asymmetric.KeyType;
+import cn.hutool.crypto.asymmetric.RSA;
 import com.index.dao.UserMapper;
 import com.index.model.User;
+import com.index.security.WeChatAuthenticationToken;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.ui.ModelMap;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 
 /**
@@ -26,22 +37,44 @@ import org.springframework.web.bind.annotation.RequestParam;
  */
 @Controller(value = "userController")
 public class UserController {
-	
+
+	String PUBLIC_KEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCoYmAJFNJlmpMgK9hFRsMOFH9osOybRQ8fkUgnRVk3a9GVKCXQL6WRY+rQDlmv7s5irhzjHeVZ2qy+iaRETMDoGvWIm7s2jk+LB2+4m30hBDrnOFcjzWeZjuRSqKEPeaInyN8SbPiLSVmcjG5HkrtHLJHcqjl2ei9t8hjTgj4+2wIDAQAB";
+	String PRIVATE_KEY = "MIICdQIBADANBgkqhkiG9w0BAQEFAASCAl8wggJbAgEAAo" +
+			"GBAKhiYAkU0mWakyAr2EVGww4Uf2iw7JtFDx+RSCdFWTdr0ZUoJdAvpZFj6tAOWa/uzmKu" +
+			"HOMd5VnarL6JpERMwOga9YibuzaOT4sHb7ibfSEEOuc4VyPNZ5mO5FKooQ95oifI3xJ" +
+			"s+ItJWZyMbkeSu0cskdyqOXZ6L23yGNOCPj7bAgMBAAECgYAozZXp/XKyjk+Cp" +
+			"z1EJE6V9d+d9emQAp8UjjcG1SY2aNkjpNPs6+7aGXVIL4IKQPsgLILxgkgWiwf7MA1v" +
+			"Q44nCcVfWiGNKNHy2DJwVH/+czy7N4TUaYiGW6sZGyh7KWbHSQAWHVPszWcg" +
+			"9E7E0Y6FGTfsdL9ghuNG57B99uUleQJBAP8cfFC9PiN+TG4JU71sy7D6AVgwjBn50b" +
+			"VtRg+ZkIHfSv62tBGyDnjgVlihiGgLuZT+AbShjzMw6pb5e90eQP8CQQCo+ItXgK" +
+			"6Q6CwjvH97fEXczTbbnsy6v48B82r1oOuBQ8teHb5kZgg2wWvNkmgldRug8V8+lkE42BYtLKF3xyYlAkAip/T/ZuX1Hmg1npDAr/Hv5" +
+			"dae62Fs+fISKnkVD3CBJBtlBN7rdHvg0eEJA1CricQ5SFRk/Hmeo6uKvPOls0FzAkAA+3jr6E6bfw4KoyTmleFeGD9SZYjxKP3u1/huNyJHXRqIkImz0bgIgXVb+5bpaNXhSKXyGjO" +
+			"E3hS67IB/zsOVAkAtn5wmxuoqAHkC+HODXaonIBptckTrMQc3t+hnFsLN8dbGuplTYCu7pQHFeYE5zkOR7+8VsOvMmUoadm0hqdBR";
+
 	/**
 	 *  Spring 控制反转与依赖注入机制
 	 */
 	@Autowired
 	private UserMapper userMapper;
 
+	@Autowired
+	@Qualifier("authenticationManager")
+	private AuthenticationManager manager;
 
-//	@RequestMapping(value = "/login", method = RequestMethod.POST)
-//	public String login(@RequestParam("username")String username,
-//						@RequestParam("password")String password,
-//						Model model){
+	@RequestMapping(value = "/weChat/login", method = RequestMethod.POST)
+	public String login(@ModelAttribute("loginBean") User user, Model model){
+//		model.addAttribute("loginBean", new User());
+		String encryptUsername = encrypt(user.getUsername());
+		try {
+			manager.authenticate(new WeChatAuthenticationToken(encryptUsername,PUBLIC_KEY));
+		} catch (AuthenticationException e) {
+			e.printStackTrace();
+		}
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 //		User user = userMapper.getUser("5038");
 //		model.addAttribute("loginBean", user);
-//		return "login";
-//	}
+		return "../../index";
+	}
 
 
 	/**
@@ -96,6 +129,22 @@ public class UserController {
 		}
 
 	}
+
+	@RequestMapping(value="/forelogin", method=RequestMethod.GET)
+	public String initForm(ModelMap model){
+		User loginBean = new User(); //用于转换到form表单的对象
+		model.addAttribute("loginBean", loginBean);
+		return "login";
+	}
+
+	@RequestMapping(value="/logout", method = RequestMethod.GET)
+	public String logoutPage (HttpServletRequest request, HttpServletResponse response) {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		if (auth != null){
+			new SecurityContextLogoutHandler().logout(request, response, auth);
+		}
+		return "redirect:../../index.jsp";//You can redirect wherever you want, but generally it's a good practice to show login screen again.
+	}
 	
 	// getter and setters
 	
@@ -107,4 +156,12 @@ public class UserController {
 	public void setUserMapper(UserMapper userMapper) {
 		this.userMapper = userMapper;
 	}
+
+	public String encrypt(String code){
+		RSA rsa = new RSA(PRIVATE_KEY, null);
+		byte[] encrypt = rsa.encrypt(StrUtil.bytes(code, CharsetUtil.CHARSET_UTF_8), KeyType.PrivateKey);
+		return Base64.encode(encrypt);
+	}
+
+
 }
